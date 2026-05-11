@@ -13,7 +13,9 @@ export default defineEventHandler(() => {
       delayMs: chaos.delayMs,
       errorRate: chaos.errorRate,
       killed: chaos.killed,
+      expiresAt: chaos.expiresAt,   // timestamp (ms) for TTL countdown
     },
     timestamp: new Date().toISOString(),
   }
 })
+

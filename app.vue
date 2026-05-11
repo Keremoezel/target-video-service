@@ -2,51 +2,17 @@
   <div class="app-shell">
     <!-- Grain overlay -->
     <div class="grain-overlay" />
-
-    <!-- Chaos banner — appears when service is under attack -->
-    <Transition name="chaos-banner">
-      <div v-if="chaosActive" class="chaos-banner">
-        <span class="chaos-banner__icon">⚠</span>
-        <span class="chaos-banner__text">
-          SYSTEM UNDER CHAOS INJECTION
-          <template v-if="chaosState?.killed"> — SERVICE KILLED</template>
-          <template v-else-if="chaosState?.delayMs > 0"> — DELAY {{ chaosState.delayMs }}ms</template>
-          <template v-else-if="chaosState?.errorRate > 0"> — ERROR RATE {{ chaosState.errorRate }}%</template>
-        </span>
-        <span class="chaos-banner__pulse" />
-      </div>
-    </Transition>
-
     <NuxtPage />
   </div>
 </template>
 
 <script setup>
-const chaosState = ref(null)
-const chaosActive = computed(() => {
-  if (!chaosState.value) return false
-  return chaosState.value.killed || chaosState.value.delayMs > 0 || chaosState.value.errorRate > 0
-})
-
-// Poll chaos status every 3 seconds
-onMounted(() => {
-  const poll = async () => {
-    try {
-      const data = await $fetch('/api/admin/status')
-      chaosState.value = data
-    } catch { }
-  }
-  poll()
-  const t = setInterval(poll, 3000)
-  onUnmounted(() => clearInterval(t))
-})
+// Chaos state handled per-page (index.vue pingHealth)
 </script>
 
 <style>
 /* ═══════════════════════════════════════════════════════════
    VOIDSCREEN — Brutalist Cinema Streaming
-   Aesthetic: Raw concrete meets celluloid. High contrast.
-   Font pairing: Playfair Display (editorial) + DM Mono (data)
    ═══════════════════════════════════════════════════════════ */
 
 :root {
@@ -67,16 +33,9 @@ onMounted(() => {
   --font-mono: 'DM Mono', 'Courier New', monospace;
 }
 
-*, *::before, *::after {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
-html {
-  font-size: 16px;
-  -webkit-font-smoothing: antialiased;
-}
+html { font-size: 16px; -webkit-font-smoothing: antialiased; }
 
 body {
   font-family: var(--font-mono);
@@ -87,10 +46,7 @@ body {
   min-height: 100vh;
 }
 
-.app-shell {
-  position: relative;
-  min-height: 100vh;
-}
+.app-shell { position: relative; min-height: 100vh; }
 
 /* ── Film Grain Overlay ── */
 .grain-overlay {
@@ -104,101 +60,156 @@ body {
   mix-blend-mode: multiply;
 }
 
-/* ── Chaos Banner ── */
-.chaos-banner {
+/* ── Player Modal ── */
+.player-modal {
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 1000;
+  inset: 0;
+  z-index: 500;
+  background: rgba(13, 13, 13, 0.85);
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 12px;
-  padding: 10px 24px;
-  background: var(--accent);
-  color: white;
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  font-weight: 500;
+  padding: 24px;
+  backdrop-filter: blur(8px);
+}
+
+.player-box {
+  background: var(--surface);
+  border: 2px solid var(--border-strong);
+  width: 100%;
+  max-width: 900px;
+  max-height: 90vh;
+  overflow-y: auto;
+  border-radius: 4px;
+}
+
+.player-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.player-cat {
+  font-size: 0.65rem;
   letter-spacing: 0.15em;
+  color: var(--text-muted);
   text-transform: uppercase;
+  margin-bottom: 4px;
 }
 
-.chaos-banner__icon {
-  font-size: 1rem;
-  animation: chaos-shake 0.15s infinite;
+.player-title {
+  font-family: var(--font-display);
+  font-size: 1.4rem;
+  font-weight: 700;
 }
 
-.chaos-banner__pulse {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: white;
-  animation: pulse-dot 1s ease infinite;
+.player-close {
+  background: none;
+  border: 1px solid var(--border);
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  font-size: 0.9rem;
+  transition: background 0.15s;
+}
+.player-close:hover { background: var(--bg-deep); }
+
+.player-wrap {
+  position: relative;
+  aspect-ratio: 16/9;
+  background: #000;
+  overflow: hidden;
 }
 
-@keyframes chaos-shake {
-  0%, 100% { transform: translateX(0); }
-  25% { transform: translateX(-2px); }
-  75% { transform: translateX(2px); }
+.player-video {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: contain;
 }
+
+.player-buffer {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: rgba(0,0,0,0.8);
+  color: #ccc;
+  font-size: 0.8rem;
+  text-align: center;
+  padding: 24px;
+}
+
+.player-chaos-msg {
+  color: #fcd34d;
+  line-height: 1.7;
+}
+.player-chaos-msg small {
+  display: block;
+  font-size: 0.7rem;
+  opacity: 0.7;
+  font-family: var(--font-mono);
+  margin-top: 4px;
+}
+
+.player-error {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: rgba(0,0,0,0.9);
+  padding: 24px;
+  text-align: center;
+}
+.player-error__code {
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  color: #fca5a5;
+  letter-spacing: 0.1em;
+}
+.player-error__msg {
+  font-size: 0.75rem;
+  color: #9ca3af;
+  max-width: 380px;
+  line-height: 1.6;
+}
+
+.player-desc {
+  padding: 16px 24px;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  line-height: 1.6;
+  border-top: 1px solid var(--border);
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--bg-deep); }
+::-webkit-scrollbar-thumb { background: var(--border); }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+/* ── Selection + Focus ── */
+::selection { background: var(--accent); color: white; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ── Page transition ── */
+.page-enter-active, .page-leave-active { transition: opacity 0.15s ease; }
+.page-enter-from, .page-leave-to { opacity: 0; }
 
 @keyframes pulse-dot {
   0%, 100% { opacity: 1; transform: scale(1); }
   50% { opacity: 0.4; transform: scale(0.7); }
-}
-
-/* ── Transitions ── */
-.chaos-banner-enter-active {
-  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.2s;
-}
-.chaos-banner-leave-active {
-  transition: transform 0.2s ease, opacity 0.2s;
-}
-.chaos-banner-enter-from {
-  transform: translateY(-100%);
-  opacity: 0;
-}
-.chaos-banner-leave-to {
-  transform: translateY(-100%);
-  opacity: 0;
-}
-
-/* ── Scrollbar ── */
-::-webkit-scrollbar {
-  width: 6px;
-}
-::-webkit-scrollbar-track {
-  background: var(--bg-deep);
-}
-::-webkit-scrollbar-thumb {
-  background: var(--border);
-  border-radius: 0;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: var(--text-muted);
-}
-
-/* ── Selection ── */
-::selection {
-  background: var(--accent);
-  color: white;
-}
-
-/* ── Focus ── */
-:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-
-/* ── Page transition ── */
-.page-enter-active,
-.page-leave-active {
-  transition: opacity 0.15s ease;
-}
-.page-enter-from,
-.page-leave-to {
-  opacity: 0;
 }
 </style>

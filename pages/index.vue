@@ -1,5 +1,5 @@
 <template>
-  <div class="page-index" :class="{ 'page-index--chaos': chaosActive }">
+  <div class="page-index">
     <!-- Header -->
     <header class="header">
       <div class="header__inner">
@@ -14,11 +14,20 @@
           </div>
         </div>
 
-        <div class="header__status">
-          <div class="status-dot" :class="serviceUp ? 'status-dot--up' : 'status-dot--down'" />
-          <span class="header__status-label">{{ serviceUp ? 'ONLINE' : 'OFFLINE' }}</span>
-          <span class="header__divider">·</span>
-          <span class="header__status-label">{{ videoCount }} titles</span>
+        <div class="header__right">
+          <!-- Floating chaos pill (no full-width overlap) -->
+          <div v-if="chaosState.active" class="chaos-pill" :class="`chaos-pill--${chaosState.type}`">
+            <span class="chaos-pill__dot" />
+            <span>{{ chaosState.icon }} {{ chaosState.shortLabel }}</span>
+            <span class="chaos-pill__sep">·</span>
+            <span class="chaos-pill__ms">{{ lastPingMs }}ms</span>
+          </div>
+          <div class="header__status">
+            <div class="status-dot" :class="serviceUp ? 'status-dot--up' : 'status-dot--down'" />
+            <span class="header__status-label">{{ serviceUp ? 'ONLINE' : 'OFFLINE' }}</span>
+            <span class="header__divider">·</span>
+            <span class="header__status-label">{{ videoCount }} titles</span>
+          </div>
         </div>
       </div>
     </header>
@@ -40,7 +49,11 @@
     <main class="grid-section">
       <div v-if="loading" class="grid-loading">
         <div class="loader" />
-        <p>Loading catalog...</p>
+        <p v-if="chaosState.type === 'delay'" class="grid-loading__chaos">
+          ⏱ Chaos delay active — catalog loading slowly (+{{ chaosState.delayMs ?? '?' }}ms)
+        </p>
+        <p v-else>Loading catalog...</p>
+        <p v-if="lastCatalogMs !== null" class="grid-loading__time">Last fetch took {{ lastCatalogMs }}ms</p>
       </div>
 
       <div v-else-if="error" class="grid-error">
@@ -98,17 +111,27 @@
           <button class="player-close" @click="closePlayer">✕</button>
         </div>
         <div class="player-wrap">
-          <iframe
-            :src="`https://www.youtube-nocookie.com/embed/${activeVideo.youtubeId}?autoplay=1&rel=0&modestbranding=1`"
-            allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
-            allowfullscreen
-            class="player-video"
-            @load="onPlaying"
-          />
-          <div v-if="buffering" class="player-buffer">
+          <div v-if="videoLoading" class="player-buffer">
             <div class="loader" />
-            <p>{{ chaosActive ? '⏱ Chaos delay detected — buffering...' : 'Loading player...' }}</p>
+            <p v-if="chaosState.type === 'delay'" class="player-chaos-msg">
+              ⏱ Chaos +{{ chaosState.delayMs }}ms delay — waiting for video service response...
+              <br><small>{{ videoLoadMs }}ms elapsed</small>
+            </p>
+            <p v-else-if="chaosState.type === 'kill'">💀 Service killed — video unavailable</p>
+            <p v-else>Resolving stream from video service...</p>
           </div>
+          <div v-else-if="videoError" class="player-error">
+            <p class="player-error__code">⚠ {{ videoError.code }}</p>
+            <p class="player-error__msg">{{ videoError.message }}</p>
+            <button class="btn btn--accent" style="margin-top:16px" @click="retryVideo">RETRY</button>
+          </div>
+          <video
+            v-else-if="resolvedVideoUrl"
+            :src="resolvedVideoUrl"
+            controls
+            autoplay
+            class="player-video"
+          />
         </div>
         <p class="player-desc">{{ activeVideo.description }}</p>
       </div>
@@ -138,7 +161,17 @@ const serviceUp = ref(true)
 const videoCount = ref(0)
 const chaosActive = ref(false)
 const activeVideo = ref(null)
-const buffering = ref(false)
+const lastPingMs = ref(null)
+const lastCatalogMs = ref(null)
+
+// Player
+const resolvedVideoUrl = ref(null)
+const videoLoading = ref(false)
+const videoError = ref(null)
+const videoLoadMs = ref(0)
+let videoLoadTimer = null
+
+const chaosState = ref({ active: false, type: 'ok', icon: '', message: '', shortLabel: '', delayMs: 0 })
 
 const formatViews = (n) => {
   if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M'
@@ -146,27 +179,63 @@ const formatViews = (n) => {
   return n
 }
 
+const resolveVideoUrl = async (videoId) => {
+  videoLoading.value = true
+  videoError.value = null
+  resolvedVideoUrl.value = null
+  videoLoadMs.value = 0
+  const t0 = performance.now()
+  videoLoadTimer = setInterval(() => { videoLoadMs.value = Math.round(performance.now() - t0) }, 100)
+  try {
+    // Native fetch — goes through Nuxt chaos middleware!
+    // Delay  → response is N ms late  → spinner with elapsed counter
+    // Error  → 500 response           → error screen shown
+    // Kill   → 503 response           → error screen shown
+    const resp = await fetch(`/api/video-url/${videoId}`)
+    const data = await resp.json()
+    if (!resp.ok) {
+      videoError.value = {
+        code: `ERR_${resp.status}`,
+        message: data?.message || `Service returned ${resp.status} — chaos injection may be active`,
+      }
+      return
+    }
+    resolvedVideoUrl.value = data.url
+  } catch (e) {
+    videoError.value = {
+      code: 'ERR_NETWORK',
+      message: 'Network error — service may be killed or unreachable',
+    }
+  } finally {
+    clearInterval(videoLoadTimer)
+    videoLoading.value = false
+  }
+}
+
 const openPlayer = (video) => {
   activeVideo.value = video
-  buffering.value = true   // show loader until iframe loads
   document.body.style.overflow = 'hidden'
+  resolveVideoUrl(video.id)
 }
 
 const closePlayer = () => {
   activeVideo.value = null
-  buffering.value = false
+  resolvedVideoUrl.value = null
+  videoError.value = null
+  clearInterval(videoLoadTimer)
   document.body.style.overflow = ''
 }
 
-const onBuffering = () => { buffering.value = true }
-const onPlaying = () => { buffering.value = false }
+const retryVideo = () => resolveVideoUrl(activeVideo.value?.id)
 
 const fetchVideos = async () => {
   loading.value = true
   error.value = null
+  const t0 = performance.now()
   try {
     const catParam = activeCategory.value === 'ALL' ? '' : `?category=${activeCategory.value}`
     const data = await $fetch(`/api/videos${catParam}`)
+    lastCatalogMs.value = Math.round(performance.now() - t0)
     videos.value = data.videos
     videoCount.value = data.total
     if (data.categories) {
@@ -174,6 +243,7 @@ const fetchVideos = async () => {
     }
     serviceUp.value = true
   } catch (e) {
+    lastCatalogMs.value = Math.round(performance.now() - t0)
     error.value = e?.data?.message || e?.message || 'Service unreachable'
     serviceUp.value = false
   } finally {
@@ -181,20 +251,49 @@ const fetchVideos = async () => {
   }
 }
 
-// Poll chaos state
+// Ping /api/health every 2s — measures real response time to show delay
+const pingHealth = async () => {
+  const t0 = performance.now()
+  try {
+    const data = await $fetch('/api/health')
+    lastPingMs.value = Math.round(performance.now() - t0)
+
+    const chaos = data.chaos
+    if (chaos?.killed) {
+      chaosState.value = { active: true, type: 'kill', icon: '💀', message: 'KILL injected', shortLabel: 'SERVICE KILLED', delayMs: 0 }
+    } else if ((chaos?.delayMs ?? 0) > 0) {
+      const ttlLeft = chaos.expiresAt ? Math.max(0, Math.ceil((chaos.expiresAt - Date.now()) / 1000)) : '?'
+      chaosState.value = { active: true, type: 'delay', icon: '⏱', message: `DELAY +${chaos.delayMs}ms`, shortLabel: `+${chaos.delayMs}ms DELAY · ${ttlLeft}s`, delayMs: chaos.delayMs }
+    } else if ((chaos?.errorRate ?? 0) > 0) {
+      const ttlLeft = chaos.expiresAt ? Math.max(0, Math.ceil((chaos.expiresAt - Date.now()) / 1000)) : '?'
+      chaosState.value = { active: true, type: 'error', icon: '⚠️', message: `ERROR ${chaos.errorRate}%`, shortLabel: `${chaos.errorRate}% ERROR · ${ttlLeft}s`, delayMs: 0 }
+    } else {
+      chaosState.value = { active: false, type: 'ok', icon: '', message: '', shortLabel: '', delayMs: 0 }
+    }
+    chaosActive.value = chaosState.value.active
+  } catch {
+    lastPingMs.value = Math.round(performance.now() - t0)
+    chaosState.value = { active: true, type: 'kill', icon: '💀', message: 'UNREACHABLE', shortLabel: 'UNREACHABLE', delayMs: 0 }
+    chaosActive.value = true
+    serviceUp.value = false
+    error.value = 'Service unreachable — chaos injection may be active'
+    videos.value = []
+  }
+}
+
 onMounted(async () => {
   await fetchVideos()
+  await pingHealth()
+
+  // Ping every 2s to show real-time response time
+  setInterval(pingHealth, 2000)
+
+  // Auto-refresh catalog every 4s so error injection & delay are visible
   setInterval(async () => {
-    try {
-      const data = await $fetch('/api/admin/status')
-      chaosActive.value = data.killed || data.delayMs > 0 || data.errorRate > 0
-      if (data.killed) {
-        serviceUp.value = false
-        error.value = 'Service terminated by chaos injection'
-        videos.value = []
-      }
-    } catch { }
-  }, 3000)
+    if (!activeVideo.value) {  // don't refresh while player is open
+      await fetchVideos()
+    }
+  }, 4000)
 })
 
 watch(activeCategory, () => fetchVideos())
@@ -205,23 +304,67 @@ watch(activeCategory, () => fetchVideos())
    INDEX PAGE — Brutalist Cinema Catalog
    ═══════════════════════════════════════ */
 
-.page-index {
-  min-height: 100vh;
-  transition: filter 0.5s ease;
+/* ── Chaos Pill (header sağı) ── */
+.chaos-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 16px 7px 12px;
+  border-radius: 999px;
+  border: 2px solid;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  font-weight: 800;
+  white-space: nowrap;
+  text-transform: uppercase;
 }
 
-.page-index--chaos {
-  animation: chaos-glitch 0.3s ease-in-out;
+.chaos-pill--kill {
+  background: rgba(220, 38, 38, 0.2);
+  border-color: #dc2626;
+  color: #f87171;
+  box-shadow: 0 0 16px rgba(220, 38, 38, 0.4), inset 0 0 12px rgba(220, 38, 38, 0.1);
+  animation: pill-kill-pulse 1s ease-in-out infinite alternate;
 }
 
-@keyframes chaos-glitch {
-  0% { transform: translate(0); filter: none; }
-  20% { transform: translate(-3px, 2px); filter: hue-rotate(30deg); }
-  40% { transform: translate(2px, -1px); filter: saturate(2); }
-  60% { transform: translate(-1px, 3px); filter: hue-rotate(-20deg); }
-  80% { transform: translate(3px, -2px); }
-  100% { transform: translate(0); filter: none; }
+.chaos-pill--delay {
+  background: rgba(217, 119, 6, 0.18);
+  border-color: #f59e0b;
+  color: #fbbf24;
+  box-shadow: 0 0 14px rgba(245, 158, 11, 0.35), inset 0 0 10px rgba(245, 158, 11, 0.08);
 }
+
+.chaos-pill--error {
+  background: rgba(234, 88, 12, 0.18);
+  border-color: #f97316;
+  color: #fb923c;
+  box-shadow: 0 0 14px rgba(249, 115, 22, 0.35), inset 0 0 10px rgba(249, 115, 22, 0.08);
+}
+
+@keyframes pill-kill-pulse {
+  from { box-shadow: 0 0 10px rgba(220, 38, 38, 0.3), inset 0 0 8px rgba(220,38,38,0.08); }
+  to   { box-shadow: 0 0 24px rgba(220, 38, 38, 0.6), inset 0 0 16px rgba(220,38,38,0.15); }
+}
+
+.chaos-pill__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+  animation: dot-blink 1.2s ease-in-out infinite;
+}
+
+@keyframes dot-blink {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.3; transform: scale(0.6); }
+}
+
+.chaos-pill__sep { opacity: 0.35; margin: 0 2px; }
+.chaos-pill__ms { opacity: 0.75; font-size: 0.7rem; font-weight: 600; }
+
+
 
 /* ── Header ── */
 .header {
@@ -273,7 +416,12 @@ watch(activeCategory, () => fetchVideos())
   color: var(--text-muted);
   letter-spacing: 0.2em;
   text-transform: uppercase;
-  margin-top: 4px;
+}
+
+.header__right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
 }
 
 .header__status {
@@ -355,6 +503,19 @@ watch(activeCategory, () => fetchVideos())
   text-align: center;
   padding: 100px 20px;
   color: var(--text-muted);
+}
+
+.grid-loading__chaos {
+  color: #fcd34d;
+  font-size: 0.85rem;
+  margin-top: 8px;
+}
+
+.grid-loading__time {
+  font-size: 0.7rem;
+  color: var(--text-faint);
+  margin-top: 6px;
+  font-family: var(--font-mono);
 }
 
 .grid-error__code {
