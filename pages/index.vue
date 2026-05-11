@@ -55,6 +55,8 @@
           :key="video.id"
           class="video-card"
           :style="{ '--stagger': i }"
+          @click="openPlayer(video)"
+          style="cursor:pointer"
         >
           <div class="video-card__img-wrap">
             <img
@@ -85,6 +87,34 @@
       </div>
     </main>
 
+    <!-- Video Player Modal -->
+    <div v-if="activeVideo" class="player-modal" @click.self="closePlayer">
+      <div class="player-box">
+        <div class="player-header">
+          <div>
+            <p class="player-cat">{{ activeVideo.category }} · {{ activeVideo.year }}</p>
+            <h2 class="player-title">{{ activeVideo.title }}</h2>
+          </div>
+          <button class="player-close" @click="closePlayer">✕</button>
+        </div>
+        <div class="player-wrap">
+          <video
+            :src="activeVideo.videoUrl"
+            controls
+            autoplay
+            class="player-video"
+            @waiting="onBuffering"
+            @playing="onPlaying"
+          />
+          <div v-if="buffering" class="player-buffer">
+            <div class="loader" />
+            <p>{{ chaosActive ? '⏱ Chaos delay detected — buffering...' : 'Buffering...' }}</p>
+          </div>
+        </div>
+        <p class="player-desc">{{ activeVideo.description }}</p>
+      </div>
+    </div>
+
     <!-- Footer -->
     <footer class="footer">
       <div class="footer__inner">
@@ -108,12 +138,28 @@ const error = ref(null)
 const serviceUp = ref(true)
 const videoCount = ref(0)
 const chaosActive = ref(false)
+const activeVideo = ref(null)
+const buffering = ref(false)
 
 const formatViews = (n) => {
   if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M'
   if (n >= 1000) return (n / 1000).toFixed(1) + 'K'
   return n
 }
+
+const openPlayer = (video) => {
+  activeVideo.value = video
+  buffering.value = false
+  document.body.style.overflow = 'hidden'
+}
+
+const closePlayer = () => {
+  activeVideo.value = null
+  document.body.style.overflow = ''
+}
+
+const onBuffering = () => { buffering.value = true }
+const onPlaying = () => { buffering.value = false }
 
 const fetchVideos = async () => {
   loading.value = true
@@ -552,6 +598,98 @@ watch(activeCategory, () => fetchVideos())
 
 .footer__link--danger {
   color: var(--accent);
+}
+
+/* ── Player Modal ── */
+.player-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.92);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  backdrop-filter: blur(8px);
+}
+
+.player-box {
+  width: 100%;
+  max-width: 900px;
+  background: var(--surface);
+  border: 2px solid var(--border-strong);
+}
+
+.player-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 20px 24px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.player-cat {
+  font-size: 0.65rem;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  margin-bottom: 4px;
+}
+
+.player-title {
+  font-family: var(--font-display);
+  font-size: 1.4rem;
+  font-weight: 700;
+}
+
+.player-close {
+  font-size: 1rem;
+  color: var(--text-muted);
+  background: none;
+  border: 1px solid var(--border);
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  flex-shrink: 0;
+  margin-left: 16px;
+}
+
+.player-close:hover {
+  border-color: var(--text);
+  color: var(--text);
+}
+
+.player-wrap {
+  position: relative;
+  background: #000;
+  aspect-ratio: 16/9;
+}
+
+.player-video {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.player-buffer {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.player-desc {
+  padding: 16px 24px;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+  border-top: 1px solid var(--border);
 }
 
 @media (max-width: 640px) {

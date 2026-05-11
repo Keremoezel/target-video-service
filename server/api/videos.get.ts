@@ -9,6 +9,8 @@ const VIDEOS = [
     rating: 8.7,
     thumbnail: 'https://images.unsplash.com/photo-1551244072-5d12893278ab?w=640&h=360&fit=crop',
     views: 142800,
+    // Public domain — Big Buck Bunny (Blender Foundation)
+    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
   },
   {
     id: '2',
@@ -20,6 +22,8 @@ const VIDEOS = [
     rating: 9.1,
     thumbnail: 'https://images.unsplash.com/photo-1515705576963-95cad62945b6?w=640&h=360&fit=crop',
     views: 389200,
+    // Elephant Dream
+    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
   },
   {
     id: '3',
@@ -31,6 +35,8 @@ const VIDEOS = [
     rating: 7.9,
     thumbnail: 'https://images.unsplash.com/photo-1446776811953-b23d57bd21aa?w=640&h=360&fit=crop',
     views: 98500,
+    // For Bigger Blazes
+    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4',
   },
   {
     id: '4',
@@ -42,6 +48,8 @@ const VIDEOS = [
     rating: 8.3,
     thumbnail: 'https://images.unsplash.com/photo-1488972685288-c3fd157d7c7a?w=640&h=360&fit=crop',
     views: 54300,
+    // For Bigger Escapes
+    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4',
   },
   {
     id: '5',
@@ -53,6 +61,8 @@ const VIDEOS = [
     rating: 9.4,
     thumbnail: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=640&h=360&fit=crop',
     views: 721000,
+    // Subaru Outback
+    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/SubaruOutbackOnStreetAndDirt.mp4',
   },
   {
     id: '6',
@@ -64,6 +74,34 @@ const VIDEOS = [
     rating: 8.1,
     thumbnail: 'https://images.unsplash.com/photo-1558618666-fcd25c85f82e?w=640&h=360&fit=crop',
     views: 67200,
+    // Volkswagen Golf
+    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/VolkswagenGTIReview.mp4',
+  },
+  {
+    id: '7',
+    title: 'Desert Protocol',
+    description: 'A lone engineer maintains the last server farm in a post-collapse world.',
+    category: 'Sci-Fi',
+    duration: '1h 50m',
+    year: 2025,
+    rating: 8.6,
+    thumbnail: 'https://images.unsplash.com/photo-1494778752932-64ee27ba2f37?w=640&h=360&fit=crop',
+    views: 212000,
+    // WeAreGoing
+    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/WeAreGoingOnBullrun.mp4',
+  },
+  {
+    id: '8',
+    title: 'The Archive',
+    description: 'Historians digitize the last surviving films of a forgotten silent era director.',
+    category: 'Drama',
+    duration: '1h 28m',
+    year: 2023,
+    rating: 7.5,
+    thumbnail: 'https://images.unsplash.com/photo-1478720568477-152d9b164e26?w=640&h=360&fit=crop',
+    views: 43100,
+    // Tears of Steel
+    videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4',
   },
 ]
 
