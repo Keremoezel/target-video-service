@@ -285,15 +285,15 @@ onMounted(async () => {
   await fetchVideos()
   await pingHealth()
 
-  // Ping every 2s to show real-time response time
-  setInterval(pingHealth, 2000)
+  // Ping every 5s to show real-time response time
+  setInterval(pingHealth, 5000)
 
-  // Auto-refresh catalog every 4s so error injection & delay are visible
+  // Auto-refresh catalog every 10s so error injection & delay are visible
   setInterval(async () => {
     if (!activeVideo.value) {  // don't refresh while player is open
       await fetchVideos()
     }
-  }, 4000)
+  }, 10000)
 })
 
 watch(activeCategory, () => fetchVideos())
