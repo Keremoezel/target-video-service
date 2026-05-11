@@ -98,17 +98,16 @@
           <button class="player-close" @click="closePlayer">✕</button>
         </div>
         <div class="player-wrap">
-          <video
-            :src="activeVideo.videoUrl"
-            controls
-            autoplay
+          <iframe
+            :src="`https://www.youtube-nocookie.com/embed/${activeVideo.youtubeId}?autoplay=1&rel=0&modestbranding=1`"
+            allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+            allowfullscreen
             class="player-video"
-            @waiting="onBuffering"
-            @playing="onPlaying"
+            @load="onPlaying"
           />
           <div v-if="buffering" class="player-buffer">
             <div class="loader" />
-            <p>{{ chaosActive ? '⏱ Chaos delay detected — buffering...' : 'Buffering...' }}</p>
+            <p>{{ chaosActive ? '⏱ Chaos delay detected — buffering...' : 'Loading player...' }}</p>
           </div>
         </div>
         <p class="player-desc">{{ activeVideo.description }}</p>
@@ -149,12 +148,13 @@ const formatViews = (n) => {
 
 const openPlayer = (video) => {
   activeVideo.value = video
-  buffering.value = false
+  buffering.value = true   // show loader until iframe loads
   document.body.style.overflow = 'hidden'
 }
 
 const closePlayer = () => {
   activeVideo.value = null
+  buffering.value = false
   document.body.style.overflow = ''
 }
 
@@ -669,6 +669,7 @@ watch(activeCategory, () => fetchVideos())
   width: 100%;
   height: 100%;
   display: block;
+  border: 0;
 }
 
 .player-buffer {
